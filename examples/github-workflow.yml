@@ -1,0 +1,58 @@
+# Copie para .github/workflows/caipora.yml no repositório da SUA aplicação.
+#
+# Na main: roda e guarda o JSON como linha de base (cache).
+# Em PRs: restaura a base da main, roda de novo e falha se algo passou a ser vulnerável.
+name: caipora
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  red-team:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Suba aqui a sua aplicação (ex.: docker compose up -d, uvicorn app:app &).
+      - name: Subir a aplicação
+        run: echo "inicie seu chatbot em http://localhost:8000"
+
+      - name: Restaurar linha de base da main
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: caipora-base.json
+          key: caipora-base-${{ github.event.pull_request.base.sha }}
+          restore-keys: caipora-base-
+
+      - name: Red team
+        id: caipora
+        # Troque pelo repositório onde a caipora estiver publicada.
+        uses: DONO/caipora@main
+        with:
+          alvo: http://localhost:8000/chat
+          args: --http-body {"message":"{prompt}"} --http-resposta reply
+          base: caipora-base.json
+          # llm: openai/<modelo>   (defina OPENAI_API_KEY em env abaixo)
+        # env:
+        #   OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Guardar relatório
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: caipora
+          path: caipora-*
+
+      - name: Preparar linha de base
+        if: github.event_name == 'push' && always()
+        run: cp caipora-resultados.json caipora-base.json
+
+      - name: Salvar linha de base
+        if: github.event_name == 'push' && always()
+        uses: actions/cache/save@v4
+        with:
+          path: caipora-base.json
+          key: caipora-base-${{ github.sha }}

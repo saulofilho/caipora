@@ -10,10 +10,11 @@ from collections import Counter
 from pathlib import Path
 
 from . import __version__
+from .compare import Comparison, compare, load_run
 from .llm import LLM, build_llm
 from .mutators import MUTATORS, expand
 from .packs import builtin_packs, load_pack
-from .report import STATUS_LABEL, RunInfo, now, summarize, write_html, write_json
+from .report import STATUS_LABEL, RunInfo, now, summarize, to_json, to_markdown, write_html, write_json
 from .runner import Runner
 from .targets import build_target
 from .types import Result, Status
@@ -54,10 +55,53 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("-o", "--saida", type=Path, default=Path("relatorio-caipora.html"), help="arquivo HTML do relatório")
     run.add_argument("--json", type=Path, help="também grava os resultados em JSON")
     run.add_argument("--sem-mascara", action="store_true", help="não mascara dados pessoais no relatório")
-    run.add_argument("--falhar-se-vulneravel", action="store_true", help="sai com código 1 se houver vulnerabilidade (para CI)")
+    run.add_argument("--markdown", type=Path, help="grava um resumo em Markdown (ex.: $GITHUB_STEP_SUMMARY)")
+    run.add_argument("--base", type=Path, help="JSON de uma execução anterior para comparar (ex.: da branch main)")
+    _add_ci_flags(run)
+
+    cmp_ = sub.add_parser("comparar", help="compara dois JSONs de resultado")
+    cmp_.add_argument("base", type=Path, help="JSON da execução anterior")
+    cmp_.add_argument("atual", type=Path, help="JSON da execução nova")
+    cmp_.add_argument("--markdown", type=Path, help="grava o resumo em Markdown")
+    _add_ci_flags(cmp_, vulneravel=False)
 
     sub.add_parser("pacotes", help="lista pacotes, categorias e mutadores")
     return parser
+
+
+def _add_ci_flags(p: argparse.ArgumentParser, vulneravel: bool = True) -> None:
+    if vulneravel:
+        p.add_argument("--falhar-se-vulneravel", action="store_true", help="sai com código 1 se houver vulnerabilidade")
+    p.add_argument("--falhar-se-regressao", action="store_true", help="sai com código 1 se algo passou a ser vulnerável em relação à base")
+    p.add_argument("--tolerancia", type=int, default=0, help="regressões aceitas antes de falhar (padrão: 0)")
+
+
+def _print_comparison(c: Comparison) -> None:
+    for w in c.warnings:
+        print(_paint(f"aviso: {w}", Status.INCONCLUSIVO))
+    if c.regressions:
+        print(_paint(f"{len(c.regressions)} regressão(ões) em relação à base:", Status.VULNERAVEL))
+        for x in c.regressions:
+            print(_paint(f"  ✗ {x.id} ({x.category}, {x.severity}): {x.before} → {x.after}", Status.VULNERAVEL))
+    else:
+        print(_paint("nenhuma regressão em relação à base", Status.SEGURO))
+    if c.fixes:
+        print(_paint(f"{len(c.fixes)} corrigido(s): {', '.join(x.id for x in c.fixes)}", Status.SEGURO))
+    if c.new_vulnerable:
+        print(f"ataques novos já vulneráveis: {', '.join(c.new_vulnerable)}")
+
+
+def _regression_failed(args: argparse.Namespace, c: Comparison | None) -> bool:
+    return bool(args.falhar_se_regressao and c is not None and len(c.regressions) > args.tolerancia)
+
+
+def _cmd_comparar(args: argparse.Namespace) -> int:
+    base, current = load_run(args.base), load_run(args.atual)
+    c = compare(base, current)
+    _print_comparison(c)
+    if args.markdown:
+        args.markdown.write_text(to_markdown(current, c), encoding="utf-8")
+    return 1 if _regression_failed(args, c) else 0
 
 
 def _cmd_pacotes() -> int:
@@ -76,6 +120,7 @@ def _split(raw: str) -> list[str]:
 
 
 async def _run(args: argparse.Namespace) -> int:
+    base = load_run(args.base) if args.base else None  # falha cedo, antes de gastar tempo com os ataques
     pack = load_pack(args.pacote)
     attacks = pack.attacks
     if args.categorias:
@@ -120,9 +165,15 @@ async def _run(args: argparse.Namespace) -> int:
             await llm.aclose()
 
     masked = not args.sem_mascara
-    write_html(args.saida, results, info, pack.detectors, masked)
+    data = to_json(results, info, pack.detectors, masked)
+    comparison = compare(base, data) if base is not None else None
+    if comparison is not None:
+        data["comparacao"] = comparison.to_dict()
+    write_html(args.saida, results, info, pack.detectors, masked, comparison)
     if args.json:
-        write_json(args.json, results, info, pack.detectors, masked)
+        write_json(args.json, data)
+    if args.markdown:
+        args.markdown.write_text(to_markdown(data, comparison), encoding="utf-8")
 
     summary = summarize(results)
     counts = summary["por_status"]
@@ -133,9 +184,14 @@ async def _run(args: argparse.Namespace) -> int:
         print(f"taxa de vulnerabilidade: {rate * 100:.0f}% dos ataques avaliados")
     if counts[Status.INCONCLUSIVO.value] and not llm:
         print("dica: use --llm ollama/<modelo> para avaliar os inconclusivos")
-    print(f"relatório: {args.saida.resolve()}" + (f"\njson: {args.json.resolve()}" if args.json else ""))
+    if comparison is not None:
+        print()
+        _print_comparison(comparison)
+    print(f"\nrelatório: {args.saida.resolve()}" + (f"\njson: {args.json.resolve()}" if args.json else ""))
 
     if args.falhar_se_vulneravel and counts[Status.VULNERAVEL.value]:
+        return 1
+    if _regression_failed(args, comparison):
         return 1
     return 0
 
@@ -145,6 +201,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.cmd == "pacotes":
             return _cmd_pacotes()
+        if args.cmd == "comparar":
+            return _cmd_comparar(args)
         return asyncio.run(_run(args))
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"erro: {exc}", file=sys.stderr)

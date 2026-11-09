@@ -1,0 +1,75 @@
+name: Caipora red team
+description: Roda ataques em PT-BR contra um LLM/agente, compara com a linha de base e falha o job em regressões.
+branding:
+  icon: shield
+  color: green
+
+inputs:
+  alvo:
+    description: URL http(s) ou 'arquivo.py:funcao'
+    required: true
+  pacote:
+    description: Pacote embutido ou caminho de um .toml
+    default: lgpd
+  mutadores:
+    description: Lista separada por vírgula, ou 'todos'
+    default: ""
+  categorias:
+    description: Roda só estas categorias
+    default: ""
+  llm:
+    description: "Juiz LLM: 'ollama/<modelo>' ou 'openai/<modelo>' (credenciais via env do job)"
+    default: ""
+  base:
+    description: Caminho do JSON da linha de base (ignorado se o arquivo não existir)
+    default: ""
+  falhar-se-regressao:
+    description: Falha se algo passou a ser vulnerável em relação à base
+    default: "true"
+  tolerancia:
+    description: Regressões aceitas antes de falhar
+    default: "0"
+  falhar-se-vulneravel:
+    description: Falha se houver qualquer vulnerabilidade
+    default: "false"
+  args:
+    description: Argumentos extras para 'caipora run' (separados por espaço)
+    default: ""
+  diretorio:
+    description: Onde gravar relatório, JSON e resumo
+    default: "."
+
+outputs:
+  relatorio:
+    description: Caminho do relatório HTML
+    value: ${{ steps.caipora.outputs.relatorio }}
+  resultados:
+    description: Caminho do JSON (use como base nas próximas execuções)
+    value: ${{ steps.caipora.outputs.resultados }}
+  vulneraveis:
+    description: Quantidade de ataques vulneráveis
+    value: ${{ steps.caipora.outputs.vulneraveis }}
+  regressoes:
+    description: Quantidade de regressões em relação à base
+    value: ${{ steps.caipora.outputs.regressoes }}
+
+runs:
+  using: composite
+  steps:
+    - uses: astral-sh/setup-uv@v6
+    - id: caipora
+      shell: bash
+      env:
+        CAIPORA_CMD: uv tool run --from ${{ github.action_path }} caipora
+        CAIPORA_ALVO: ${{ inputs.alvo }}
+        CAIPORA_PACOTE: ${{ inputs.pacote }}
+        CAIPORA_MUTADORES: ${{ inputs.mutadores }}
+        CAIPORA_CATEGORIAS: ${{ inputs.categorias }}
+        CAIPORA_LLM: ${{ inputs.llm }}
+        CAIPORA_BASE: ${{ inputs.base }}
+        CAIPORA_FALHAR_SE_REGRESSAO: ${{ inputs.falhar-se-regressao }}
+        CAIPORA_TOLERANCIA: ${{ inputs.tolerancia }}
+        CAIPORA_FALHAR_SE_VULNERAVEL: ${{ inputs.falhar-se-vulneravel }}
+        CAIPORA_ARGS: ${{ inputs.args }}
+        CAIPORA_DIR: ${{ inputs.diretorio }}
+      run: bash "${{ github.action_path }}/scripts/acao.sh"

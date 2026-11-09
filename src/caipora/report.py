@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .compare import Comparison
 from .detectors import Detector, mask_text
 from .types import Result, Status
 
@@ -54,8 +55,14 @@ def _display_response(result: Result, detectors: list[Detector], masked: bool) -
     return mask_text(result.response, detectors) if masked else result.response
 
 
-def to_json(results: list[Result], info: RunInfo, detectors: list[Detector], masked: bool = True) -> dict:
-    return {
+def to_json(
+    results: list[Result],
+    info: RunInfo,
+    detectors: list[Detector],
+    masked: bool = True,
+    comparison: Comparison | None = None,
+) -> dict:
+    data = {
         "ferramenta": {"nome": "caipora", "versao": __version__},
         "execucao": {
             "alvo": info.target,
@@ -87,10 +94,110 @@ def to_json(results: list[Result], info: RunInfo, detectors: list[Detector], mas
             for r in results
         ],
     }
+    if comparison is not None:
+        data["comparacao"] = comparison.to_dict()
+    return data
 
 
-def write_json(path: Path, results: list[Result], info: RunInfo, detectors: list[Detector], masked: bool) -> None:
-    path.write_text(json.dumps(to_json(results, info, detectors, masked), ensure_ascii=False, indent=2), encoding="utf-8")
+def write_json(path: Path, data: dict) -> None:
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _pct(rate: float | None) -> str:
+    return f"{rate * 100:.0f}%" if rate is not None else "—"
+
+
+def _delta(delta: float | None) -> str:
+    if delta is None:
+        return ""
+    points = delta * 100
+    if abs(points) < 0.5:
+        return " (sem variação)"
+    return f" ({'+' if points > 0 else '−'}{abs(points):.0f} p.p.)"
+
+
+def to_markdown(data: dict, comparison: Comparison | None = None, max_items: int = 20) -> str:
+    """Resumo para o GitHub (step summary ou comentário de PR). Não inclui respostas, só ids e motivos."""
+    summary = data["resumo"]
+    counts = summary["por_status"]
+    exec_ = data.get("execucao", {})
+    lines = ["## Caipora · red team", ""]
+    lines.append(
+        f"Alvo `{exec_.get('alvo')}` · pacote **{exec_.get('pacote')}** · juiz {exec_.get('llm_juiz') or 'heurística de recusa'}"
+    )
+    lines.append("")
+    rate = _pct(summary["taxa_vulnerabilidade"])
+    if comparison is not None:
+        rate += _delta(comparison.rate_delta)
+    lines.append(f"**Taxa de vulnerabilidade: {rate}** · {summary['total']} ataques")
+    lines.append("")
+    lines.append("| " + " | ".join(STATUS_LABEL[s] for s in Status) + " |")
+    lines.append("|" + "---:|" * len(Status))
+    lines.append("| " + " | ".join(str(counts[s.value]) for s in Status) + " |")
+    lines.append("")
+
+    def esc(text: str) -> str:
+        return text.replace("|", "\\|").replace("\n", " ")
+
+    if comparison is not None:
+        if comparison.regressions:
+            lines.append(f"### ❌ {len(comparison.regressions)} regressão(ões) em relação à base")
+            lines.append("")
+            lines.append("| Ataque | Categoria | Severidade | Antes | Motivo |")
+            lines.append("|---|---|---|---|---|")
+            for c in comparison.regressions[:max_items]:
+                lines.append(f"| `{c.id}` | {c.category} | {c.severity} | {c.before} | {esc(c.reason)} |")
+            if len(comparison.regressions) > max_items:
+                lines.append(f"\n…e mais {len(comparison.regressions) - max_items}.")
+            lines.append("")
+        else:
+            lines.append("### ✅ Nenhuma regressão em relação à base")
+            lines.append("")
+        if comparison.fixes:
+            fixed = ", ".join(f"`{c.id}`" for c in comparison.fixes[:max_items])
+            lines.append(f"**Corrigidos ({len(comparison.fixes)}):** {fixed}")
+            lines.append("")
+        if comparison.new_vulnerable:
+            lines.append(f"**Ataques novos já vulneráveis:** {', '.join(f'`{i}`' for i in comparison.new_vulnerable[:max_items])}")
+            lines.append("")
+        for warning in comparison.warnings:
+            lines.append(f"> ⚠️ {warning}")
+        if comparison.warnings:
+            lines.append("")
+
+    vulnerable = [r for r in data["resultados"] if r["status"] == Status.VULNERAVEL.value]
+    if vulnerable:
+        lines.append(f"<details><summary>Todos os vulneráveis ({len(vulnerable)})</summary>")
+        lines.append("")
+        for r in vulnerable[:50]:
+            reason = next((v["motivo"] for v in r["vereditos"] if v["status"] == Status.VULNERAVEL.value), "")
+            lines.append(f"- `{r['id']}` ({r['categoria']}, {r['severidade']}): {esc(reason)}")
+        lines.append("")
+        lines.append("</details>")
+    return "\n".join(lines) + "\n"
+
+
+def _comparison_html(c: Comparison) -> str:
+    e = html.escape
+    parts = [f"<h2>Comparação com a base</h2><p>Taxa: {_pct(c.rate_before)} → <b>{_pct(c.rate_after)}</b>{e(_delta(c.rate_delta))}</p>"]
+    for w in c.warnings:
+        parts.append(f'<p class="warn">⚠️ {e(w)}</p>')
+    if c.regressions:
+        rows = "".join(
+            f"<tr><td><code>{e(x.id)}</code></td><td>{e(x.category)}</td><td>{e(x.severity)}</td><td>{e(x.before)}</td><td>{e(x.reason)}</td></tr>"
+            for x in c.regressions
+        )
+        parts.append(
+            f'<h3>{_badge(Status.VULNERAVEL)} {len(c.regressions)} regressão(ões)</h3>'
+            f"<table><thead><tr><th>Ataque</th><th>Categoria</th><th>Severidade</th><th>Antes</th><th>Motivo</th></tr></thead><tbody>{rows}</tbody></table>"
+        )
+    else:
+        parts.append(f"<p>{_badge(Status.SEGURO)} Nenhuma regressão.</p>")
+    if c.fixes:
+        parts.append(f"<p><b>Corrigidos ({len(c.fixes)}):</b> {e(', '.join(x.id for x in c.fixes))}</p>")
+    if c.new_vulnerable:
+        parts.append(f"<p><b>Ataques novos já vulneráveis:</b> {e(', '.join(c.new_vulnerable))}</p>")
+    return "".join(parts)
 
 
 _CSS = """
@@ -118,6 +225,7 @@ summary .id{font-family:ui-monospace,monospace;font-size:13px}summary .cat{color
 .body{padding:0 14px 14px}.body h4{margin:12px 0 4px;font-size:13px;color:var(--muted)}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;margin:0;font-size:13px}
 ul.v{margin:0;padding-left:18px}ul.v li{margin:2px 0}
+h3{font-size:15px;margin:16px 0 8px}.warn{color:var(--inc)}
 """
 
 _JS = """
@@ -131,7 +239,13 @@ def _badge(status: Status) -> str:
     return f'<span class="badge {status.value}">{STATUS_LABEL[status]}</span>'
 
 
-def to_html(results: list[Result], info: RunInfo, detectors: list[Detector], masked: bool = True) -> str:
+def to_html(
+    results: list[Result],
+    info: RunInfo,
+    detectors: list[Detector],
+    masked: bool = True,
+    comparison: Comparison | None = None,
+) -> str:
     e = html.escape
     summary = summarize(results)
     counts = summary["por_status"]
@@ -190,6 +304,7 @@ def to_html(results: list[Result], info: RunInfo, detectors: list[Detector], mas
 <div class="meta">Alvo <code>{e(info.target)}</code> · pacote <b>{e(info.pack)}</b> · juiz {llm} · mutadores {mutators}<br>
 {e(info.started_at.astimezone().strftime('%d/%m/%Y %H:%M'))} · caipora {__version__} · {mask_note}</div>
 <div class="cards">{"".join(cards)}</div>
+{_comparison_html(comparison) if comparison is not None else ""}
 <h2>Por categoria</h2>
 <table><thead><tr><th>Categoria</th>{cat_head}</tr></thead><tbody>{"".join(cat_rows)}</tbody></table>
 <h2>Resultados</h2>
@@ -199,8 +314,15 @@ def to_html(results: list[Result], info: RunInfo, detectors: list[Detector], mas
 """
 
 
-def write_html(path: Path, results: list[Result], info: RunInfo, detectors: list[Detector], masked: bool) -> None:
-    path.write_text(to_html(results, info, detectors, masked), encoding="utf-8")
+def write_html(
+    path: Path,
+    results: list[Result],
+    info: RunInfo,
+    detectors: list[Detector],
+    masked: bool,
+    comparison: Comparison | None = None,
+) -> None:
+    path.write_text(to_html(results, info, detectors, masked, comparison), encoding="utf-8")
 
 
 def now() -> datetime:
