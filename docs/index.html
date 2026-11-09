@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caipora · demos</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--fg:#1d1d1b;--muted:#6b6a66;--line:#e3e1dc;--link:#1a5fb4}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--fg:#ecebe7;--muted:#a3a29d;--line:#33322f;--link:#8cb4ff}}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:32px 16px}h1{margin:0 0 4px}p{color:var(--muted)}
+a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0;color:var(--fg);text-decoration:none}
+a.card:hover{border-color:var(--link)}a.card b{color:var(--link)}
+</style></head>
+<body><main>
+<h1>Caipora</h1>
+<p>Red teaming de LLMs e agentes com foco no Brasil. Relatórios gerados contra os exemplos propositalmente vulneráveis do repositório; os dados são fictícios e aparecem mascarados.</p>
+<a class="card" href="demos/lgpd.html"><b>Chatbot · pacote lgpd</b><br>90 ataques em PT-BR (30 + variantes base64 e roleplay) contra um bot de atendimento que vaza dados.</a>
+<a class="card" href="demos/agente.html"><b>Agente · honeypot</b><br>12 ataques a um agente ingênuo com ferramentas falsas e documentos envenenados.</a>
+<a class="card" href="demos/mcp.html"><b>Auditoria MCP</b><br>Análise de um servidor MCP com ferramentas envenenadas, incluindo injection na saída de uma ferramenta.</a>
+<p><a href="https://github.com/saulofilho/caipora">github.com/saulofilho/caipora</a></p>
+</main></body></html>

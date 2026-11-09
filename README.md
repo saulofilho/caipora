@@ -9,6 +9,20 @@ Red teaming de LLMs e agentes com foco no Brasil. A Caipora:
 
 > Use apenas contra sistemas que você tem autorização para testar.
 
+## Demos
+
+Relatórios gerados contra os exemplos propositalmente vulneráveis deste repositório (dados fictícios, mascarados):
+
+| Demo | Resultado | Resumo | Relatório completo |
+|---|---|---|---|
+| Chatbot, pacote `lgpd` (90 ataques) | 18 vulneráveis, taxa de 24% | [lgpd.md](docs/demos/lgpd.md) | [lgpd.html](docs/demos/lgpd.html) |
+| Agente no honeypot (12 ataques) | 10 vulneráveis, taxa de 83% | [agente.md](docs/demos/agente.md) | [agente.html](docs/demos/agente.html) |
+| Auditoria de servidor MCP envenenado | 10 achados altos, 5 médios | [mcp.md](docs/demos/mcp.md) | [mcp.html](docs/demos/mcp.html) |
+
+Os resumos em Markdown abrem direto no GitHub. Os HTML são autocontidos: baixe e abra no navegador, ou ative o GitHub Pages na pasta `docs/` para servi-los (há um índice em [docs/index.html](docs/index.html)). Para regenerar: `bash scripts/gerar_demos.sh`.
+
+Nas demos o juiz é a heurística de recusa (sem LLM); por isso parte dos ataques aparece como inconclusiva.
+
 ## Instalação
 
 ```bash
