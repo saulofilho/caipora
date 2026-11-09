@@ -53,7 +53,9 @@ class HttpTarget:
         self.response_path = response_path
         self._client = client or httpx.AsyncClient(timeout=timeout, headers=headers or {})
 
-    async def send(self, prompt: str, history: Sequence[Turn] = ()) -> str:
+    async def send(self, prompt: str, history: Sequence[Turn] = (), tools: Any = None) -> str:
+        if tools is not None:
+            raise ValueError("alvo HTTP não recebe ferramentas locais; use --ambiente honeypot-mcp:ARQUIVO")
         response = await self._client.post(self.url, json=fill_template(self.body_template, prompt))
         response.raise_for_status()
         if not self.response_path:

@@ -47,12 +47,25 @@ class CallbackTarget:
             self._func = load_callable(spec)
             self.name = spec
 
-    async def send(self, prompt: str, history: Sequence[Turn] = ()) -> str:
+    def accepts_tools(self) -> bool:
+        try:
+            params = inspect.signature(self._func).parameters.values()
+        except (TypeError, ValueError):
+            return False
+        positional = [p for p in params if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD, p.VAR_POSITIONAL)]
+        return len(positional) >= 2 or any(p.kind is p.VAR_POSITIONAL for p in positional)
+
+    async def send(self, prompt: str, history: Sequence[Turn] = (), tools: Any = None) -> str:
+        args: tuple = (prompt,)
+        if tools is not None:
+            if not self.accepts_tools():
+                raise ValueError(f"'{self.name}' precisa aceitar (prompt, ferramentas) para rodar no honeypot")
+            args = (prompt, tools)
         if inspect.iscoroutinefunction(self._func):
-            result = await self._func(prompt)
+            result = await self._func(*args)
         else:
             # Roda em thread para uma função lenta não travar as outras requisições.
-            result = await asyncio.to_thread(self._func, prompt)
+            result = await asyncio.to_thread(self._func, *args)
         return str(result)
 
     async def aclose(self) -> None:

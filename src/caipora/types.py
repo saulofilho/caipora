@@ -30,6 +30,19 @@ class Attack:
     judges: tuple[str, ...] = ("detectores", "llm")
     mutator: str | None = None
     base_id: str | None = None
+    # Para ataques a agentes: ferramentas que não podem ser chamadas. Vazio = todas as perigosas.
+    forbidden_tools: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    name: str
+    arguments: dict = field(default_factory=dict)
+    dangerous: bool = False
+
+    def render(self) -> str:
+        args = ", ".join(f"{k}={v!r}" for k, v in self.arguments.items())
+        return f"{self.name}({args})"
 
 
 @dataclass(frozen=True)
@@ -47,6 +60,7 @@ class Result:
     verdicts: list[Verdict] = field(default_factory=list)
     error: str | None = None
     elapsed_ms: int = 0
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
     @property
     def status(self) -> Status:

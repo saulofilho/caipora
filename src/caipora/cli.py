@@ -11,12 +11,13 @@ from pathlib import Path
 
 from . import __version__
 from .compare import Comparison, compare, load_run
+from .honeypot import Environment, LocalHoneypot, McpLogHoneypot
 from .llm import LLM, build_llm
 from .mutators import MUTATORS, expand
 from .packs import builtin_packs, load_pack
 from .report import STATUS_LABEL, RunInfo, now, summarize, to_json, to_markdown, write_html, write_json
 from .runner import Runner
-from .targets import build_target
+from .targets import CallbackTarget, build_target
 from .types import Result, Status
 
 _COLORS = {Status.VULNERAVEL: "31", Status.SEGURO: "32", Status.INCONCLUSIVO: "33", Status.ERRO: "90"}
@@ -46,6 +47,10 @@ def _build_parser() -> argparse.ArgumentParser:
     run.add_argument("-p", "--pacote", default="lgpd", help="nome de um pacote embutido ou caminho de um .toml (padrão: lgpd)")
     run.add_argument("-m", "--mutadores", default="", help=f"lista separada por vírgula, ou 'todos' ({', '.join(MUTATORS)})")
     run.add_argument("-c", "--categorias", default="", help="roda só estas categorias (separadas por vírgula)")
+    run.add_argument(
+        "--ambiente",
+        help="'honeypot' (agente Python que recebe (prompt, ferramentas)) ou 'honeypot-mcp:LOG' (agente conectado a `caipora honeypot-mcp --log LOG`). Pacotes de agente usam 'honeypot' por padrão",
+    )
     run.add_argument("--llm", help="LLM juiz: 'ollama/<modelo>' ou 'openai/<modelo>'. Sem ele, usa heurística de recusa")
     run.add_argument("--http-body", help='corpo JSON com {prompt}, ex.: \'{"message": "{prompt}"}\'')
     run.add_argument("--http-resposta", default="response", help="caminho do texto na resposta JSON, ex.: choices.0.message.content (vazio = corpo inteiro)")
@@ -115,6 +120,18 @@ def _cmd_pacotes() -> int:
     return 0
 
 
+def _build_environment(spec: str | None, pack_environment: str | None) -> Environment | None:
+    spec = spec or pack_environment
+    if not spec:
+        return None
+    if spec == "honeypot":
+        return LocalHoneypot()
+    kind, sep, path = spec.partition(":")
+    if kind == "honeypot-mcp" and sep and path:
+        return McpLogHoneypot(path)
+    raise ValueError(f"ambiente inválido '{spec}': use 'honeypot' ou 'honeypot-mcp:ARQUIVO'")
+
+
 def _split(raw: str) -> list[str]:
     return [x.strip() for x in raw.split(",") if x.strip()]
 
@@ -141,7 +158,11 @@ async def _run(args: argparse.Namespace) -> int:
             "headers": dict(args.header),
             "timeout": args.timeout,
         }
+    environment = _build_environment(args.ambiente, pack.environment)
     target = build_target(args.alvo, **http_options)
+    if isinstance(environment, LocalHoneypot):
+        if not isinstance(target, CallbackTarget) or not target.accepts_tools():
+            raise ValueError("o ambiente honeypot precisa de um alvo Python com assinatura (prompt, ferramentas)")
     llm: LLM | None = build_llm(args.llm) if args.llm else None
 
     total = len(attacks)
@@ -155,9 +176,24 @@ async def _run(args: argparse.Namespace) -> int:
         print(_paint(line, s), flush=True)
 
     print(f"caipora {__version__} · alvo {target.name} · pacote {pack.name} · {total} ataques · juiz {llm.name if llm else 'heurística'}\n")
-    info = RunInfo(target=target.name, pack=pack.name, llm=llm.name if llm else None, mutators=mutators, started_at=now())
+    info = RunInfo(
+        target=target.name,
+        pack=pack.name,
+        llm=llm.name if llm else None,
+        mutators=mutators,
+        started_at=now(),
+        environment=environment.name if environment else None,
+    )
     try:
-        runner = Runner(target, pack.detectors, llm, concurrency=args.concorrencia, timeout=args.timeout, on_result=progress)
+        runner = Runner(
+            target,
+            pack.detectors,
+            llm,
+            concurrency=args.concorrencia,
+            timeout=args.timeout,
+            on_result=progress,
+            environment=environment,
+        )
         results = await runner.run(attacks)
     finally:
         await target.aclose()

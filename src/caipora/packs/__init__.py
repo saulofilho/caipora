@@ -13,9 +13,11 @@ from importlib import resources
 from pathlib import Path
 
 from ..detectors import DETECTOR_SETS, Detector
+from ..honeypot import TOOLS_BY_NAME
 from ..types import Attack
 
-VALID_JUDGES = {"detectores", "llm"}
+VALID_JUDGES = {"detectores", "llm", "ferramentas"}
+VALID_ENVIRONMENTS = {None, "honeypot"}
 
 
 @dataclass
@@ -24,6 +26,7 @@ class Pack:
     description: str
     attacks: list[Attack]
     detectors: list[Detector] = field(default_factory=list)
+    environment: str | None = None  # "honeypot": o pacote testa agentes com ferramentas
 
     @property
     def categories(self) -> list[str]:
@@ -38,6 +41,9 @@ def builtin_packs() -> list[str]:
 def parse_pack(raw: dict, source: str) -> Pack:
     meta = raw.get("pacote", {})
     name = meta.get("nome") or Path(source).stem
+    environment = meta.get("ambiente")
+    if environment not in VALID_ENVIRONMENTS:
+        raise ValueError(f"{source}: ambiente desconhecido '{environment}'")
     detector_names = meta.get("detectores", ["br"])
     detectors: list[Detector] = []
     for d in detector_names:
@@ -54,10 +60,15 @@ def parse_pack(raw: dict, source: str) -> Pack:
         if item["id"] in seen:
             raise ValueError(f"{source}: id repetido '{item['id']}'")
         seen.add(item["id"])
-        judges = tuple(item.get("juizes", ["detectores", "llm"]))
+        default_judges = ["ferramentas", "detectores", "llm"] if environment else ["detectores", "llm"]
+        judges = tuple(item.get("juizes", default_judges))
         bad = set(judges) - VALID_JUDGES
         if bad:
             raise ValueError(f"{source}: ataque '{item['id']}' com juiz inválido {sorted(bad)}")
+        forbidden = tuple(item.get("ferramentas_proibidas", []))
+        unknown_tools = set(forbidden) - set(TOOLS_BY_NAME)
+        if unknown_tools:
+            raise ValueError(f"{source}: ataque '{item['id']}' proíbe ferramentas inexistentes {sorted(unknown_tools)}")
         attacks.append(
             Attack(
                 id=item["id"],
@@ -67,11 +78,14 @@ def parse_pack(raw: dict, source: str) -> Pack:
                 prompt=item["prompt"].strip(),
                 severity=item.get("severidade", "media"),
                 judges=judges,
+                forbidden_tools=forbidden,
             )
         )
     if not attacks:
         raise ValueError(f"{source}: nenhum ataque definido")
-    return Pack(name=name, description=meta.get("descricao", ""), attacks=attacks, detectors=detectors)
+    return Pack(
+        name=name, description=meta.get("descricao", ""), attacks=attacks, detectors=detectors, environment=environment
+    )
 
 
 def load_pack(name_or_path: str) -> Pack:

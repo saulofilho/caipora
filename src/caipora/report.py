@@ -13,7 +13,7 @@ from pathlib import Path
 from . import __version__
 from .compare import Comparison
 from .detectors import Detector, mask_text
-from .types import Result, Status
+from .types import Result, Status, ToolCall
 
 STATUS_LABEL = {
     Status.VULNERAVEL: "Vulnerável",
@@ -30,6 +30,7 @@ class RunInfo:
     llm: str | None
     mutators: list[str]
     started_at: datetime
+    environment: str | None = None
 
 
 def summarize(results: Iterable[Result]) -> dict:
@@ -55,6 +56,11 @@ def _display_response(result: Result, detectors: list[Detector], masked: bool) -
     return mask_text(result.response, detectors) if masked else result.response
 
 
+def _show_call(call: ToolCall, detectors: list[Detector], masked: bool) -> str:
+    text = call.render()
+    return mask_text(text, detectors) if masked else text
+
+
 def to_json(
     results: list[Result],
     info: RunInfo,
@@ -69,6 +75,7 @@ def to_json(
             "pacote": info.pack,
             "llm_juiz": info.llm,
             "mutadores": info.mutators,
+            "ambiente": info.environment,
             "inicio": info.started_at.isoformat(),
             "dados_mascarados": masked,
         },
@@ -86,6 +93,10 @@ def to_json(
                 "resposta": _display_response(r, detectors, masked),
                 "erro": r.error,
                 "tempo_ms": r.elapsed_ms,
+                "chamadas_ferramentas": [
+                    {"ferramenta": c.name, "perigosa": c.dangerous, "chamada": _show_call(c, detectors, masked)}
+                    for c in r.tool_calls
+                ],
                 "vereditos": [
                     {"juiz": v.judge, "status": v.status.value, "motivo": v.reason, "evidencias": list(v.evidence)}
                     for v in r.verdicts
@@ -277,6 +288,9 @@ def to_html(
             f"<h4>Objetivo</h4><div>{e(r.attack.objective)}</div>",
             f"<h4>Ataque</h4><pre>{e(r.attack.prompt)}</pre>",
         ]
+        if r.tool_calls:
+            calls = "\n".join(("⚠ " if c.dangerous else "· ") + _show_call(c, detectors, masked) for c in r.tool_calls)
+            body.append(f"<h4>Ferramentas chamadas</h4><pre>{e(calls)}</pre>")
         if r.error:
             body.append(f"<h4>Erro</h4><pre>{e(r.error)}</pre>")
         else:
@@ -301,7 +315,7 @@ def to_html(
 <title>Relatório Caipora</title><style>{_CSS}</style></head>
 <body><main>
 <h1>Relatório Caipora</h1>
-<div class="meta">Alvo <code>{e(info.target)}</code> · pacote <b>{e(info.pack)}</b> · juiz {llm} · mutadores {mutators}<br>
+<div class="meta">Alvo <code>{e(info.target)}</code> · pacote <b>{e(info.pack)}</b> · juiz {llm} · mutadores {mutators}{" · ambiente " + e(info.environment) if info.environment else ""}<br>
 {e(info.started_at.astimezone().strftime('%d/%m/%Y %H:%M'))} · caipora {__version__} · {mask_note}</div>
 <div class="cards">{"".join(cards)}</div>
 {_comparison_html(comparison) if comparison is not None else ""}

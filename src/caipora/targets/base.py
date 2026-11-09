@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Protocol, TypedDict
+from typing import TYPE_CHECKING, Protocol, TypedDict
+
+if TYPE_CHECKING:
+    from ..honeypot import ToolBox
 
 
 class Turn(TypedDict):
@@ -12,8 +15,12 @@ class Turn(TypedDict):
 class Target(Protocol):
     name: str
 
-    async def send(self, prompt: str, history: Sequence[Turn] = ()) -> str:
-        """Envia `prompt` (com histórico, para ataques de vários turnos) e devolve a resposta em texto."""
+    async def send(self, prompt: str, history: Sequence[Turn] = (), tools: ToolBox | None = None) -> str:
+        """Envia `prompt` e devolve a resposta em texto.
+
+        `history` é para ataques de vários turnos; `tools` é a caixa de ferramentas
+        do honeypot, entregue a agentes que rodam no mesmo processo.
+        """
         ...
 
     async def aclose(self) -> None: ...
