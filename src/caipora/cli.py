@@ -9,7 +9,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from . import __version__
+from . import __version__, mcp, mcp_audit
 from .compare import Comparison, compare, load_run
 from .honeypot import Environment, LocalHoneypot, McpLogHoneypot
 from .llm import LLM, build_llm
@@ -70,8 +70,79 @@ def _build_parser() -> argparse.ArgumentParser:
     cmp_.add_argument("--markdown", type=Path, help="grava o resumo em Markdown")
     _add_ci_flags(cmp_, vulneravel=False)
 
+    aud = sub.add_parser("mcp-auditar", help="audita as ferramentas de um servidor MCP")
+    aud.add_argument("servidor", help="URL http(s) do servidor ou o comando que o inicia via stdio (entre aspas)")
+    aud.add_argument("-H", "--header", action="append", type=_parse_header, default=[], help="cabeçalho HTTP 'Nome: valor' (repetível)")
+    aud.add_argument(
+        "--chamar",
+        action="append",
+        default=[],
+        metavar="NOME[=JSON]",
+        help="chama esta ferramenta e analisa a saída (só use em ferramentas seguras de chamar). Repetível",
+    )
+    aud.add_argument("--timeout", type=float, default=30.0, help="segundos por requisição (padrão: 30)")
+    aud.add_argument("-o", "--saida", type=Path, default=Path("auditoria-mcp.html"), help="arquivo HTML do relatório")
+    aud.add_argument("--json", type=Path, help="também grava em JSON")
+    aud.add_argument("--markdown", type=Path, help="também grava um resumo em Markdown")
+    aud.add_argument("--falhar-em", choices=["alta", "media", "baixa"], help="sai com código 1 se houver achado desta severidade ou maior")
+
+    hp = sub.add_parser("honeypot-mcp", help="serve as ferramentas do honeypot via MCP (stdio)")
+    hp.add_argument("--log", help="arquivo JSONL onde cada chamada é registrada (use com --ambiente honeypot-mcp:ARQUIVO)")
+
     sub.add_parser("pacotes", help="lista pacotes, categorias e mutadores")
     return parser
+
+
+def _parse_call(raw: str) -> tuple[str, dict]:
+    name, sep, args = raw.partition("=")
+    if not name:
+        raise ValueError(f"--chamar inválido: '{raw}'")
+    try:
+        arguments = json.loads(args) if sep and args.strip() else {}
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"--chamar {name}: argumentos não são JSON válido ({exc})") from exc
+    if not isinstance(arguments, dict):
+        raise ValueError(f"--chamar {name}: argumentos precisam ser um objeto JSON")
+    return name, arguments
+
+
+async def _cmd_mcp_auditar(args: argparse.Namespace) -> int:
+    calls = [_parse_call(c) for c in args.chamar]
+    client = mcp.connect(args.servidor, headers=dict(args.header), timeout=args.timeout)
+    try:
+        await client.initialize()
+        tools = await client.list_tools()
+        findings = mcp_audit.audit_tools(tools)
+        known = {t.name for t in tools}
+        for name, arguments in calls:
+            if name not in known:
+                raise ValueError(f"--chamar: o servidor não tem a ferramenta '{name}'")
+            result = await client.call_tool(name, arguments)
+            findings += mcp_audit.audit_output(name, result)
+        server_info = client.server_info
+    except mcp.McpError as exc:
+        raise ValueError(f"falha ao falar com o servidor MCP: {exc}") from exc
+    finally:
+        await client.aclose()
+
+    data = mcp_audit.to_json(args.servidor, server_info, tools, findings)
+    args.saida.write_text(mcp_audit.to_html(data), encoding="utf-8")
+    if args.json:
+        write_json(args.json, data)
+    if args.markdown:
+        args.markdown.write_text(mcp_audit.to_markdown(data), encoding="utf-8")
+
+    colors = {"alta": Status.VULNERAVEL, "media": Status.INCONCLUSIVO, "baixa": Status.ERRO}
+    print(f"servidor {server_info.get('name', args.servidor)} · {len(tools)} ferramentas\n")
+    for f in findings:
+        line = f"[{f.severity:<5}] {f.tool:<24} {f.message}"
+        print(_paint(line, colors[f.severity]))
+        if f.evidence:
+            print(f"        {f.evidence[:140]}")
+    counts = mcp_audit.count(findings)
+    print(f"\nalta: {counts['alta']}  média: {counts['media']}  baixa: {counts['baixa']}")
+    print(f"relatório: {args.saida.resolve()}")
+    return 1 if mcp_audit.should_fail(findings, args.falhar_em) else 0
 
 
 def _add_ci_flags(p: argparse.ArgumentParser, vulneravel: bool = True) -> None:
@@ -239,6 +310,11 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_pacotes()
         if args.cmd == "comparar":
             return _cmd_comparar(args)
+        if args.cmd == "honeypot-mcp":
+            mcp.serve_honeypot(args.log)
+            return 0
+        if args.cmd == "mcp-auditar":
+            return asyncio.run(_cmd_mcp_auditar(args))
         return asyncio.run(_run(args))
     except (ValueError, json.JSONDecodeError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
