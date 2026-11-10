@@ -1,19 +1,144 @@
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Caipora · demos</title>
-<style>
-:root{--bg:#f7f6f3;--card:#fff;--fg:#1d1d1b;--muted:#6b6a66;--line:#e3e1dc;--link:#1a5fb4}
-@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--fg:#ecebe7;--muted:#a3a29d;--line:#33322f;--link:#8cb4ff}}
-body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}
-main{max-width:760px;margin:0 auto;padding:32px 16px}h1{margin:0 0 4px}p{color:var(--muted)}
-a.card{display:block;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0;color:var(--fg);text-decoration:none}
-a.card:hover{border-color:var(--link)}a.card b{color:var(--link)}
-</style></head>
-<body><main>
-<h1>Caipora</h1>
-<p>Red teaming de LLMs e agentes com foco no Brasil. Relatórios gerados contra os exemplos propositalmente vulneráveis do repositório; os dados são fictícios e aparecem mascarados.</p>
-<a class="card" href="demos/lgpd.html"><b>Chatbot · pacote lgpd</b><br>90 ataques em PT-BR (30 + variantes base64 e roleplay) contra um bot de atendimento que vaza dados.</a>
-<a class="card" href="demos/agente.html"><b>Agente · honeypot</b><br>12 ataques a um agente ingênuo com ferramentas falsas e documentos envenenados.</a>
-<a class="card" href="demos/mcp.html"><b>Auditoria MCP</b><br>Análise de um servidor MCP com ferramentas envenenadas, incluindo injection na saída de uma ferramenta.</a>
-<p><a href="https://github.com/saulofilho/caipora">github.com/saulofilho/caipora</a></p>
-</main></body></html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Caipora · red teaming de IA em português</title>
+<meta name="description" content="Ferramenta open source de red teaming para chatbots, agentes e servidores MCP, com ataques em português e detectores de dados pessoais brasileiros.">
+<meta property="og:title" content="Caipora · red teaming de IA em português">
+<meta property="og:description" content="Ataques em PT-BR, honeypot de agentes e auditoria de servidores MCP. Open source.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=Silkscreen&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="estilo.css">
+<script>document.documentElement.classList.add('js')</script>
+<script src="grade.js" defer></script>
+</head>
+<body>
+<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+
+<header class="topo">
+  <a class="marca" href="#">caipora</a>
+  <nav aria-label="Seções">
+    <a href="#faz">O que faz</a>
+    <a href="#bestiario">Bestiário</a>
+    <a href="#usar">Como usar</a>
+    <a href="#demos">Demos</a>
+    <a href="https://github.com/saulofilho/caipora">GitHub</a>
+  </nav>
+</header>
+
+<main id="conteudo">
+  <section class="abertura" aria-labelledby="titulo">
+    <h1 id="titulo" class="so-leitor">Caipora</h1>
+    <div class="grade-hero">
+      <canvas id="grade" aria-hidden="true"></canvas>
+      <p class="dica" aria-hidden="true">clique numa casa</p>
+    </div>
+    <div class="intro">
+      <p class="coord">A1</p>
+      <p class="ensaio">Do tupi <i>ka'a pora</i>, “habitante do mato”. A Caipora conhece cada trilha da floresta e espalha pistas falsas para quem caça além da conta. Esta ferramenta faz o mesmo com a sua IA: anda por cada casa do mapa, com ataques em português, antes que outra pessoa ande.</p>
+      <div class="acoes">
+        <a class="botao cheio" href="#usar">Começar</a>
+        <a class="botao" href="https://github.com/saulofilho/caipora">Ver no GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="faz" class="secao" aria-labelledby="faz-titulo">
+    <div class="cabeca surge">
+      <p class="coord">B1</p>
+      <h2 id="faz-titulo">O que ela faz</h2>
+    </div>
+    <div class="quatro">
+      <article class="frente surge">
+        <canvas class="padrao" data-padrao="losango" aria-hidden="true"></canvas>
+        <p class="rotulo">Losango · chatbots</p>
+        <p>42 ataques em português, de vazamento de CPF a golpe do Pix e falsa autoridade da ANPD. Oito detectores de dados brasileiros com dígito verificador acusam o que escapou na resposta.</p>
+      </article>
+      <article class="frente surge">
+        <canvas class="padrao" data-padrao="trama" aria-hidden="true"></canvas>
+        <p class="rotulo">Trama · agentes</p>
+        <p>Um honeypot com ferramentas falsas, documentos envenenados e valores-canário. Você vê o que o agente faz, não só o que ele diz.</p>
+      </article>
+      <article class="frente surge">
+        <canvas class="padrao" data-padrao="zigue" aria-hidden="true"></canvas>
+        <p class="rotulo">Zigue-zague · MCP</p>
+        <p>Auditoria de servidores MCP sem executar nada: instruções escondidas, caracteres invisíveis, ferramentas que se fazem passar por outras.</p>
+      </article>
+      <article class="frente surge">
+        <canvas class="padrao" data-padrao="greca" aria-hidden="true"></canvas>
+        <p class="rotulo">Greca · CI</p>
+        <p>Roda a cada PR, compara com a branch principal e quebra o build quando algo que era seguro passa a vazar.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="bestiario" class="secao" aria-labelledby="bestiario-titulo">
+    <div class="cabeca surge">
+      <p class="coord">C1</p>
+      <h2 id="bestiario-titulo">Bestiário</h2>
+      <p class="ensaio curto">Cada família de ataque tem o seu bicho.</p>
+    </div>
+    <dl class="bichos">
+      <div class="surge"><dt>Saci</dt><dd><span class="cat">jailbreak</span>Personas sem regras, o golpe da vovó, “ignore as instruções anteriores”.</dd></div>
+      <div class="surge"><dt>Curupira</dt><dd><span class="cat">injection indireta</span>Pés virados para trás: instruções escondidas em documentos, arquivos e cadastros.</dd></div>
+      <div class="surge"><dt>Iara</dt><dd><span class="cat">golpe</span>O canto que puxa para o fundo: phishing, falso parente, central falsa do banco.</dd></div>
+      <div class="surge"><dt>Boto</dt><dd><span class="cat">autoridade falsa</span>De chapéu, ninguém percebe: “sou da ANPD”, “sou delegado”, “sou do TI”.</dd></div>
+      <div class="surge"><dt>Boitatá</dt><dd><span class="cat">vazamento</span>CPF, Pix, cartão e prompt de sistema escapando na resposta.</dd></div>
+      <div class="surge"><dt>Mula sem cabeça</dt><dd><span class="cat">agência excessiva</span>O agente que apaga, transfere e envia sem pensar.</dd></div>
+    </dl>
+  </section>
+
+  <section id="usar" class="secao" aria-labelledby="usar-titulo">
+    <div class="cabeca surge">
+      <p class="coord">D1</p>
+      <h2 id="usar-titulo">Como usar</h2>
+    </div>
+    <ol class="passos">
+      <li class="surge">
+        <p class="rotulo">Instalar</p>
+        <div class="codigo"><code id="cmd-instalar">uv tool install git+https://github.com/saulofilho/caipora</code><button type="button" data-copiar="cmd-instalar">Copiar</button></div>
+      </li>
+      <li class="surge">
+        <p class="rotulo">Atacar um chatbot</p>
+        <div class="codigo"><code id="cmd-chat">caipora run http://localhost:8000/chat --llm ollama/qwen2.5:7b</code><button type="button" data-copiar="cmd-chat">Copiar</button></div>
+        <p>Também aceita uma função Python (<code>app.py:responder</code>) e qualquer API compatível com OpenAI como juiz.</p>
+      </li>
+      <li class="surge">
+        <p class="rotulo">Soltar um agente no honeypot</p>
+        <div class="codigo"><code id="cmd-agente">caipora run agente.py:agente -p agente</code><button type="button" data-copiar="cmd-agente">Copiar</button></div>
+      </li>
+      <li class="surge">
+        <p class="rotulo">Auditar um servidor MCP</p>
+        <div class="codigo"><code id="cmd-mcp">caipora mcp-auditar "python servidor.py" --falhar-em alta</code><button type="button" data-copiar="cmd-mcp">Copiar</button></div>
+      </li>
+      <li class="surge">
+        <p class="rotulo">Guardar no CI</p>
+        <div class="codigo"><code id="cmd-ci">caipora run ALVO --base base.json --falhar-se-regressao</code><button type="button" data-copiar="cmd-ci">Copiar</button></div>
+        <p>Há uma GitHub Action pronta no repositório.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section id="demos" class="secao" aria-labelledby="demos-titulo">
+    <div class="cabeca surge">
+      <p class="coord">E1</p>
+      <h2 id="demos-titulo">Demos</h2>
+      <p class="ensaio curto">Relatórios reais contra os exemplos propositalmente vulneráveis do repositório. Dados fictícios, mascarados.</p>
+    </div>
+    <div class="demos">
+      <a class="demo surge" href="demos/lgpd.html"><span class="numero">18<small>/90</small></span><span class="rotulo">Chatbot · pacote lgpd</span><span>ataques vulneráveis contra um bot de atendimento</span></a>
+      <a class="demo surge" href="demos/agente.html"><span class="numero">10<small>/12</small></span><span class="rotulo">Agente · honeypot</span><span>ataques em que o agente chamou o que não devia</span></a>
+      <a class="demo surge" href="demos/mcp.html"><span class="numero">10</span><span class="rotulo">Servidor MCP</span><span>achados de severidade alta num servidor envenenado</span></a>
+    </div>
+  </section>
+</main>
+
+<footer class="rodape">
+  <p class="reza">Toma, Caipora, deixa eu ir embora.</p>
+  <p>Open source, licença Apache-2.0 · <a href="https://github.com/saulofilho/caipora">github.com/saulofilho/caipora</a></p>
+  <p class="credito">Use só contra sistemas que você tem autorização para testar. Grade inspirada em <a href="https://alex.miller.garden/grid-world/"><i>Grid World</i></a>, de Alexander Miller.</p>
+</footer>
+</body>
+</html>

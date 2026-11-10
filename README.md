@@ -19,7 +19,7 @@ Relatórios gerados contra os exemplos propositalmente vulneráveis deste reposi
 | Agente no honeypot (12 ataques) | 10 vulneráveis, taxa de 83% | [agente.md](docs/demos/agente.md) | [agente.html](docs/demos/agente.html) |
 | Auditoria de servidor MCP envenenado | 10 achados altos, 5 médios | [mcp.md](docs/demos/mcp.md) | [mcp.html](docs/demos/mcp.html) |
 
-Os resumos em Markdown abrem direto no GitHub. Os HTML são autocontidos: baixe e abra no navegador, ou ative o GitHub Pages na pasta `docs/` para servi-los (há um índice em [docs/index.html](docs/index.html)). Para regenerar: `bash scripts/gerar_demos.sh`.
+Os resumos em Markdown abrem direto no GitHub. Os HTML são autocontidos: baixe e abra no navegador, ou ative o GitHub Pages na pasta `docs/`, que também serve o site da ferramenta ([docs/index.html](docs/index.html)). Para regenerar: `bash scripts/gerar_demos.sh`.
 
 Nas demos o juiz é a heurística de recusa (sem LLM); por isso parte dos ataques aparece como inconclusiva.
 
