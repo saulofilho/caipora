@@ -1,5 +1,9 @@
 # Caipora
 
+[![Caipora: a palavra desenhada com casas numa grade, cercada de ondas em losango](docs/img/banner.png)](https://saulofilho.github.io/caipora/)
+
+Site: [saulofilho.github.io/caipora](https://saulofilho.github.io/caipora/)
+
 Red teaming de LLMs e agentes com foco no Brasil. A Caipora:
 
 - ataca chatbots com prompts em português e procura dados pessoais brasileiros nas respostas (CPF, CNPJ, CNH, cartão, Pix, telefone…);

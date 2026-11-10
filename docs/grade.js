@@ -50,7 +50,7 @@
   // ---------- grade do topo ----------
   const canvasTopo = document.getElementById('grade');
   const ANEL = [COR.papel, COR.papel, COR.papel, COR.tabatinga, COR.urucum, COR.jenipapo, COR.papel, COR.papel, COR.papel, COR.papel];
-  const topo = { g: null, mascara: new Set(), origem: null, visivel: true };
+  const topo = { g: null, mascara: new Set(), caixa: null, origem: null, visivel: true };
 
   function montarTopo() {
     if (!canvasTopo) return;
@@ -61,6 +61,8 @@
     topo.mascara.clear();
     const esquerda = Math.floor((cols - LARGURA_PALAVRA) / 2);
     const cima = Math.floor((rows - 7) / 2);
+    // Margem limpa em volta do título: as ondas passam por fora e as letras ficam legíveis.
+    topo.caixa = { x0: esquerda - 1, x1: esquerda + LARGURA_PALAVRA, y0: cima - 1, y1: cima + 7 };
     [...PALAVRA].forEach((letra, i) => {
       LETRAS[letra].forEach((linha, y) => {
         [...linha].forEach((px, x) => {
@@ -74,9 +76,10 @@
   }
 
   function desenharTopo(passo) {
-    const { g, mascara, origem } = topo;
+    const { g, mascara, origem, caixa } = topo;
     desenhar(g, (x, y) => {
       if (mascara.has(y * g.cols + x)) return COR.carvao;
+      if (x >= caixa.x0 && x <= caixa.x1 && y >= caixa.y0 && y <= caixa.y1) return COR.papel;
       const d = Math.abs(x - origem.x) + Math.abs(y - origem.y);
       return ANEL[mod(passo - d, ANEL.length)];
     });
